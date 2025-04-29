@@ -1,0 +1,256 @@
+// Andrew Wettstein -- alw04
+
+// for all functions:
+// X0 is *a
+// X1 is s
+// X2 is i
+// X3 is *b
+
+// X19 is *a, X20 is s, these are just set as initial values so something actually happens but these can be changed
+ADDI X19, XZR, #0
+ADDI X20, XZR, #64
+ADD X0, X19, XZR
+ADD X1, X20, XZR
+
+BL fill                 // goto fill
+DUMP
+
+BL heapsort
+
+HALT                    // stop execution
+
+fill:
+  // X0 is *a, X1 is s
+
+  SUBI SP, SP, #24      // allocate space on the stack
+  STUR LR, [SP, #0]     // save registers
+  STUR X19, [SP, #8]
+  STUR X20, [SP, #16]
+
+  ADD X19, X0, XZR      // X19 = *a
+  ADD X20, X1, XZR      // X20 = s
+
+  ADD X9, XZR, XZR      // X9 = i, i = 0
+
+  SUBIS XZR, X20, #2    // compare s and 2, set flags
+  B.LT check_odd        // if s < 2, skip loop and goto check_odd
+
+  LSR X10, X20, #1      // X10 = s / 2
+  ADDI X11, X20, #1     // X11 = s + 1
+  LSR X11, X11, #1      // X11 = (s + 1) / 2
+
+fill_loop:
+  SUBS XZR, X9, X10     // compare i and s / 2, set flags
+  B.GE check_odd        // if i >= s / 2, exit loop and goto check_odd
+
+  ADDI X12, X9, #1      // X12 = i + 1
+  LSL X13, X9, #1       // X13 = i * 2
+  ADDI X14, X13, #1     // X14 = (i * 2) + 1
+
+  SUB X15, X11, X12     // X15 = ((s + 1) / 2) - (i + 1)
+  ADD X12, X11, X9      // X12 = ((s + 1) / 2) + i
+
+  LSL X15, X15, #3      // X15 = X15 * 8
+  LSL X12, X12, #3      // X12 = X12 * 8
+
+  ADD X15, X15, X19     // X15 = &a[((s + 1) / 2) - (i + 1)]
+  ADD X12, X12, X19     // X12 = &a[((s + 1) / 2) + i]
+
+  STUR X13, [X15, #0]   // a[((s + 1) / 2) - (i + 1)] = i * 2
+  STUR X14, [X12, #0]   // a[((s + 1) / 2) + i] = (i * 2) + 1
+
+  ADDI X9, X9, #1       // i++
+
+  B fill_loop           // goto top of fill_loop
+
+check_odd:
+  ANDI X10, X20, #1     // s and 1
+  SUBS XZR, X10, XZR
+  CBZ X10, fill_end     // if s == 0, goto end
+
+  SUBI X11, X20, #1     // X11 = s - 1
+  STUR X11, [X19, #0]   // a[0] = s - 1
+
+fill_end:
+  LDUR X20, [SP, #16]
+  LDUR X19, [SP, #8]
+  LDUR LR, [SP, #0]
+  ADDI SP, SP, #24
+  BR LR                 // return
+
+
+swap:
+  // X0 is *a, X3 is *b
+
+  SUBI SP, SP, #24      // allocate space on the stack
+  STUR LR, [SP, #0]     // save registers
+  STUR X19, [SP, #8]
+  STUR X20, [SP, #16]
+
+  ADD X19, X0, XZR      // X19 = *a
+  ADD X20, X3, XZR      // X20 = *b
+
+  LDUR X5, [X19, #0]    // X5 = *a
+  LDUR X6, [X20, #0]    // X6 = *b
+  STUR X0, [X19, #0]    // *a = *b
+  STUR X10, [X20, #0]   // *b = *a
+
+  LDUR X20, [SP, #16]
+  LDUR X19, [SP, #8]
+  LDUR LR, [SP, #0]
+  ADDI SP, SP, #24
+  BR LR                 // return
+
+
+percolate_down:
+ // X0 is *a, X1 is s, X2 is i, X4 is child
+
+  SUBI SP, SP, #32      // allocate space on the stack
+  STUR LR, [SP, #0]     // save registers
+  STUR X19, [SP, #8]
+  STUR X20, [SP, #16]
+  STUR X21, [SP, #24]
+
+  ADD X19, X0, XZR      // X19 = *a
+  ADD X20, X1, XZR      // X20 = s
+  ADD X21, X2, XZR      // X21 = i
+
+  LSL X4, X21, #1       // X4 = i * 2
+  ADDI X4, X4, #1       // X4 = (i * 2) + 1
+percolate_loop:
+
+  SUBS XZR, X4, X20     // compare child and s, set flags
+  B.GE percolate_end    // if child >= s, goto percolate_end
+
+  ADDI X10, X4, #1      // X10 = child + 1
+  SUBS XZR, X10, X20    // compare child + 1 and s, set flags
+  B.GE check_swap       // if child + 1 >= s, goto check_swap
+
+  LSL X11, X4, #3       // X11 = child * 8
+  LSL X12, X10, #3      // X12 = (child + 1) * 8
+
+  ADD X11, X11, X19     // X11 = &a[child]
+  ADD X12, X12, X19     // X12 = &a[child + 1]
+
+  LDUR X13, [X11, #0]   // X13 = a[child]
+  LDUR X14, [X12, #0]   // X14 = a[child + 1]
+  SUBS XZR, X13, X14    // compare a[child] and a[child + 1], set flags
+  B.GE check_swap       // if a[child] >= a[child + 1], goto check_swap
+
+  ADDI X4, X4, #1       // child++
+
+check_swap:
+  LSL X11, X4, #3       // X11 = child * 8
+  ADD X11, X11, X19     // X11 = &a[child]
+  LDUR X13, [X11, #0]   // X13 = a[child]
+
+  LSL X12, X21, #3      // X12 = i * 8
+  ADD X12, X12, X19     // X12 = &a[i]
+  LDUR X10, [X12, #0]   // X10 = a[i]
+
+  SUBS XZR, X10, X13    // compare a[i] and a[child], set flags
+  B.GE percolate_update // if a[i] >= a[child], goto percolate_update
+
+  ADD X0, X12, XZR      // X0  = &a[i]
+  ADD X3, X11, XZR      // X3 = &a[child]
+  BL swap               // goto swap
+
+percolate_update:
+  ADD X21, X4, XZR      // i = child
+  LSL X4, X21, #2       // child = i * 2
+  ADDI X4, X4, #1       // child = (i * 2) + 1
+
+  B percolate_loop      // goto percolate_down
+
+percolate_end:
+  LDUR X21, [SP, #24]
+  LDUR X20, [SP, #16]
+  LDUR X19, [SP, #8]
+  LDUR LR, [SP, #0]
+  ADDI SP, SP, #32
+  BR LR                 //return
+
+
+heapify:
+  // X0 is *a, X1 is s, X9 is i
+  SUBI SP, SP, #32      // allocate space on the stack
+  STUR LR, [SP, #0]     // save registers
+  STUR X19, [SP, #8]
+  STUR X20, [SP, #16]
+  STUR X21, [SP, #24]
+
+  ADD X19, X0, XZR      // X19 = *a
+  ADD X20, X1, XZR      // X20 = s
+  ADD X21, X9, XZR      // X21 = i
+
+  ADDI X21, X20, #1     // i = s + 1
+  LSR X21, X21, #1      // i = (s + 1) / 2`
+
+heapify_loop:
+  CBZ X21, heapify_end  // if i == 0, goto heapify_end
+
+  ADD X0, X19, XZR      // X0 = *a
+  ADD X1, X20, XZR      // X1 = s
+  ADD X2, X21, XZR      // X2 = i
+  BL percolate_down     // goto percolate_down
+
+  SUBI X21, X21, #1     // i--
+  B heapify_loop        // goto heapify
+
+heapify_end:
+  ADD X0, X19, XZR      // X0 = *a
+  ADD X1, X20, XZR      // X1 = s
+  ADD X2, XZR, XZR      // X2 = 0
+  BL percolate_down     // goto percolate_down
+  LDUR X21, [SP, #24]
+  LDUR X20, [SP, #16]
+  LDUR X19, [SP, #8]
+  LDUR LR, [SP, #0]
+  ADDI SP, SP, #32
+  BR LR                 // return
+
+heapsort:
+  // X0 is *a, X1 is s, X9 is i
+
+  SUBI SP, SP, #32      // allocate space on the stack
+  STUR LR, [SP, #0]     // save registers
+  STUR X19, [SP, #8]
+  STUR X20, [SP, #16]
+  STUR X21, [SP, #24]
+
+  ADD X19, X0, XZR      // X19 = *a
+  ADD X20, X1, XZR      // X20 = s
+  ADD X21, X9, XZR      // X21 = i
+
+  ADD X0, X19, XZR
+  ADD X1, X20, XZR
+  BL heapify            // goto heapify
+  ADDI X9, XZR, #1      // i = 1
+
+heapsort_loop:
+  SUBS XZR, X9, X20     // compare i and s, set flags
+  B.GE heapsort_end     // if i >= s, goto heapify_end
+
+  SUB X10, X20, X9      // X10 = s - i
+  LSL X11, X10, #3      // X11 = (s - i) * 8
+  ADD X12, X11, X19     // X12 = &a[s - i]
+
+  ADD X0, X19, XZR
+  ADD X3, X12, XZR
+  BL swap               // goto swap
+
+  ADD X0, X19, XZR      // X0 = *a
+  ADD X1, X10, XZR      // X1 = s - i
+  ADD X2, XZR, XZR      // X2 = 0
+  BL percolate_down     // goto percolate_down
+
+  ADDI X9, X9, #1       // i++
+  B heapsort_loop       // goto heapsort
+
+heapsort_end:
+  LDUR X21, [SP, #24]
+  LDUR X20, [SP, #16]
+  LDUR X19, [SP, #8]
+  LDUR LR, [SP, #0]
+  ADDI SP, SP, #32
+  BR LR                 // return
